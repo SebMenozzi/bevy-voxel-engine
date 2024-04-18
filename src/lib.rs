@@ -5,7 +5,7 @@ use bevy::{
 };
 use physics::PhysicsPlugin;
 pub use physics::VOXELS_PER_METER;
-use voxel_pipeline::RenderPlugin;
+use voxel_pipeline::{RenderPlugin, VoxelGraph};
 pub use voxel_pipeline::{
     trace::TraceSettings, voxelization::VoxelizationMaterial,
     voxelization::VoxelizationMaterialType, RenderGraphSettings,
@@ -125,7 +125,7 @@ pub struct VoxelCameraBundle {
 impl Default for VoxelCameraBundle {
     fn default() -> Self {
         Self {
-            camera_render_graph: CameraRenderGraph::new("voxel"),
+            camera_render_graph: CameraRenderGraph::new(VoxelGraph),
             tonemapping: Tonemapping::AcesFitted,
             camera: Camera {
                 hdr: true,

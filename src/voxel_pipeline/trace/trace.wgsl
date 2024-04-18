@@ -61,6 +61,7 @@ fn get_voxel(pos: vec3<f32>) -> f32 {
     }
 
     let voxel = textureLoad(voxel_world, vec3<i32>(pos.zyx));
+    
     return min(f32(voxel.r & 0xFFu), 1.0);
 }
 
@@ -122,7 +123,7 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let hit = shoot_ray(ray, 0.0, 0u);
     var steps = hit.steps;
 
-    let timespan = 0.1;
+    let timespan = 1.0;
     let w = clamp((trace_uniforms.time * timespan + 12.0) % 24.0, 0.0, 24.0);
     let skybox_info = skybox(ray.dir, w);
 

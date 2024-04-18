@@ -34,25 +34,28 @@ struct CharacterPortals {
     portal2: Entity,
 }
 
-#[derive(Component)]
-struct Gun;
-
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins)
-    .add_plugins(ObjPlugin)
-    .add_plugins(BevyVoxelEnginePlugin)
-    .add_plugins(character::Character)
-    .add_plugins(ui::UiPlugin)
-    .add_plugins(fps_counter::FpsCounter)
-    .add_systems(Startup, setup)
-    .add_systems(Update, update_suzanne)
-    .add_systems(Update, shoot)
-    .add_systems(Update, update_fire)
-    .add_systems(Update, spawn_stuff);
-    // .add_system(update_velocitys)
-    //.add_system(update_guns)
 
+    app.add_plugins((
+        DefaultPlugins,
+        ObjPlugin,
+        BevyVoxelEnginePlugin,
+        character::Character,
+        ui::UiPlugin,
+        fps_counter::FpsCounter,
+    ))
+    .add_systems(Startup, setup)
+    .add_systems(
+        Update,
+        (
+            //update_suzanne,
+            shoot,
+            update_fire,
+            spawn_stuff,
+        ),
+    );
+    
     app.run();
 }
 
@@ -64,9 +67,12 @@ fn setup(
     mut load_voxel_world: ResMut<LoadVoxelWorld>,
     asset_server: Res<AssetServer>,
 ) {
+    // load a voxel world
     *load_voxel_world = LoadVoxelWorld::File("assets/monu9.vox".to_string());
 
+    // character portals
     let mut character_portals = vec![None; 2];
+
     for i in 0..2 {
         character_portals[i] = Some(
             commands
@@ -75,7 +81,7 @@ fn setup(
                         mesh_handle: asset_server.load("models/portal.obj"),
                         transform: Transform::from_xyz(0.0, 100.0, 0.0)
                             .looking_at(Vec3::ZERO, Vec3::Y)
-                            .with_scale(Vec3::new(4.0, 4.0, i as f32 * 2.0 - 1.0)),
+                            .with_scale(Vec3::new(i as f32 * 2.0 - 1.0, 1.0, i as f32 * 2.0 - 1.0)),
                         voxelization_material: VoxelizationMaterial {
                             flags: Flags::ANIMATION_FLAG | Flags::PORTAL_FLAG,
                             ..default()
@@ -99,8 +105,8 @@ fn setup(
         );
     }
 
-    // character
-    let character_transform = Transform::from_xyz(0.0, 40.0, -1.0)
+    // Character
+    let character_transform = Transform::from_xyz(0.0, 60.0, 0.0)
         .looking_at(Vec3::ZERO, Vec3::Y);
 
     let projection = Projection::Perspective(PerspectiveProjection {
@@ -118,7 +124,7 @@ fn setup(
             CharacterEntity {
                 in_spectator: false,
                 grounded: false,
-                look_at: -character_transform.local_z(),
+                look_at: -*character_transform.local_z(),
                 up: Vec3::new(0.0, 1.0, 0.0),
             },
             CharacterPortals {
@@ -127,20 +133,13 @@ fn setup(
             },
             VoxelPhysics::new(
                 Vec3::splat(0.0),
-                Vec3::ZERO, // gravity handeled in character.rs
+                Vec3::ZERO, // Gravity handeled in character.rs
                 CollisionEffect::None,
             ),
             BoxCollider {
                 half_size: IVec3::new(2, 4, 2),
             },
-            BloomSettings {
-                intensity: 0.25,
-                prefilter_settings: BloomPrefilterSettings {
-                    threshold: 0.6,
-                    ..default()
-                },
-                ..default()
-            },
+            BloomSettings::default(),
             Fxaa::default(),
         ))
         .with_children(|parent| {
@@ -161,22 +160,8 @@ fn setup(
             ));
         });
 
-    /*
-    // portal gun
-    commands.spawn((
-        VoxelizationBundle {
-            mesh_handle: asset_server.load("models/guns/portal_gun.obj"),
-            voxelization_material: VoxelizationMaterial {
-                material: VoxelizationMaterialType::Material(1),
-                flags: Flags::ANIMATION_FLAG,
-            },
-            ..default()
-        },
-        Gun,
-    ));
-    */
+    // Rotated portals
 
-    // rotated portal
     let pos = vec![Vec3::new(5.0, 0.0, -5.0), Vec3::new(-5.0, 0.0, 5.0)];
     
     for i in 0..2 {
@@ -196,7 +181,7 @@ fn setup(
                 Portal,
             ))
             .with_children(|parent| {
-                // portal border
+                // Portal border
                 parent.spawn(VoxelizationBundle {
                     mesh_handle: asset_server.load("models/portal_frame.obj"),
                     voxelization_material: VoxelizationMaterial {
@@ -208,6 +193,7 @@ fn setup(
             });
     }
     
+    /*
     // voxelized mesh
     commands.spawn((
         VoxelizationBundle {
@@ -223,6 +209,7 @@ fn setup(
         },
         Suzanne,
     ));
+    */
 }
 
 #[derive(Component)]
@@ -239,13 +226,12 @@ fn update_suzanne(time: Res<Time>, mut cube: Query<&mut Transform, With<Suzanne>
 
 fn shoot(
     mut commands: Commands,
-    input: Res<Input<MouseButton>>,
-    keyboard: Res<Input<KeyCode>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     mut character: Query<(&Transform, &mut CharacterEntity)>,
 ) {
     let (transform, mut character_entity) = character.single_mut();
 
-    if keyboard.just_pressed(KeyCode::Key1) {
+    if keyboard.just_pressed(KeyCode::Digit1) {
         commands.spawn((
             Transform::from_translation(transform.translation),
             Particle {
@@ -260,7 +246,7 @@ fn shoot(
             Bullet { bullet_type: 1 },
         ));
     }
-    if keyboard.just_pressed(KeyCode::Key2) {
+    if keyboard.just_pressed(KeyCode::Digit2) {
         commands.spawn((
             Transform::from_translation(transform.translation),
             Particle {
@@ -276,7 +262,7 @@ fn shoot(
         ));
     }
 
-    if keyboard.just_pressed(KeyCode::E) {
+    if keyboard.just_pressed(KeyCode::KeyE) {
         println!("Pressed E");
 
         commands.spawn((
@@ -297,11 +283,11 @@ fn shoot(
         ));
     }
 
-    if keyboard.just_pressed(KeyCode::P) {
+    if keyboard.just_pressed(KeyCode::KeyP) {
         character_entity.in_spectator = !character_entity.in_spectator;
     }
 
-    if keyboard.just_pressed(KeyCode::B) {
+    if keyboard.just_pressed(KeyCode::KeyB) {
         commands.spawn((
             Transform::from_translation(transform.translation),
             VoxelPhysics::new(
@@ -333,38 +319,6 @@ fn update_fire(mut particle_query: Query<(Entity, &mut Particle)>, mut commands:
         }
     }
 }
-
-fn update_guns(
-    character_query: Query<&Transform, (With<CharacterEntity>, Without<Gun>)>,
-    mut guns: Query<&mut Transform, With<Gun>>,
-) {
-    let character_transform = character_query.single();
-    for mut gun_transform in guns.iter_mut() {
-        gun_transform.translation = character_transform.translation;
-        gun_transform.rotation = gun_transform
-            .rotation
-            .slerp(character_transform.rotation, 0.1);
-    }
-}
-
-// fn update_velocitys(
-//     mut commands: Commands,
-//     mut velocity_query: Query<(&Transform, &mut VoxelPhysics, Entity), With<Bullet>>,
-//     time: Res<Time>,
-// ) {
-//     // let to_destroy = ConcurrentQueue::unbounded();
-//     // velocity_query.par_for_each_mut(8, |(_transform, mut velocity, _entity)| {
-//     //     // velocity.velocity += Vec3::new(0.0, -9.81 * time.delta_seconds(), 0.0);
-//     //     // let e = animation::world_to_render(transform.translation.abs(), uniforms.texture_size);
-//     //     // if e.x > 1.0 || e.y > 1.0 || e.z > 1.0 {
-//     //     //     to_destroy.push(entity).unwrap();
-//     //     // }
-//     // });
-
-//     // while let Ok(entity) = to_destroy.pop() {
-//     //     commands.entity(entity).despawn();
-//     // }
-// }
 
 fn spawn_stuff(
     mut commands: Commands,

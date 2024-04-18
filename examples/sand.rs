@@ -50,7 +50,7 @@ fn setup(
         CharacterEntity {
             in_spectator: true,
             grounded: false,
-            look_at: -transform.local_z(),
+            look_at: -*transform.local_z(),
             up: Vec3::new(0.0, 1.0, 0.0),
         },
         VoxelPhysics::new(
@@ -87,7 +87,7 @@ fn setup(
 fn update(
     mut sand_spawner: Query<(&mut Transform, &mut VoxelizationMaterial), With<SandSpawner>>,
     character_query: Query<&Transform, (With<CharacterEntity>, Without<SandSpawner>)>,
-    input: Res<Input<MouseButton>>,
+    input: Res<ButtonInput<MouseButton>>,
 ) {
     let character = character_query.single();
     let (mut sand_spawner, mut sand_material) = sand_spawner.single_mut();

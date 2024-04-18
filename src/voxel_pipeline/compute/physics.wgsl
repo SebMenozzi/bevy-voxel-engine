@@ -59,8 +59,7 @@ fn physics(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
         var hit_normal = vec3(0.0);
         var portal_rotation = IDENTITY;
         
-        // TODO: Find out why this is "needed"
-        let delta_time = compute_uniforms.delta_time / 20.0;
+        let delta_time = compute_uniforms.delta_time;
 
         velocity += gravity * delta_time;
 

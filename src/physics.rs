@@ -8,8 +8,8 @@ use crate::{
 };
 use bevy::{
     prelude::*,
-    render::renderer::{RenderDevice, RenderQueue},
     render::render_resource::MapMode,
+    render::renderer::{RenderDevice, RenderQueue},
     utils::HashMap,
 };
 
@@ -295,12 +295,12 @@ pub fn extract_animation_data(
             voxel_uniforms.portals[i - 1] = ExtractedPortal {
                 transformation: second_matrix * first_matrix.inverse(),
                 position: first_pos,
-                normal: first_normal,
+                normal: *first_normal,
             };
             voxel_uniforms.portals[i] = ExtractedPortal {
                 transformation: first_matrix * second_matrix.inverse(),
                 position: second_pos,
-                normal: second_normal,
+                normal: *second_normal,
             };
         }
     }

@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
-        render_asset::RenderAssets,
+        render_asset::{RenderAssets, RenderAssetUsages},
         render_graph::{self, NodeRunError, RenderGraphContext, SlotInfo, SlotType, SlotValue},
         render_resource::*,
         renderer::RenderContext,
@@ -43,6 +43,7 @@ fn add_render_attachments(
             TextureDimension::D2,
             &[0; 8],
             TextureFormat::Rgba16Float,
+            RenderAssetUsages::default(),
         );
         image.texture_descriptor.usage = TextureUsages::COPY_DST
             | TextureUsages::STORAGE_BINDING
@@ -52,6 +53,7 @@ fn add_render_attachments(
             TextureDimension::D2,
             &[0; 16],
             TextureFormat::Rgba32Float,
+            RenderAssetUsages::default(),
         );
         highp_image.texture_descriptor.usage = TextureUsages::COPY_DST
             | TextureUsages::STORAGE_BINDING
@@ -130,7 +132,7 @@ impl render_graph::Node for AttachmentsNode {
 
         let render_attachments = match self.query.get_manual(world, view_entity) {
             Ok(result) => result,
-            Err(_) => panic!("Voxel camera missing component!"),
+            Err(err) => panic!("Voxel camera missing component! {}", err),
         };
 
         let normal = gpu_images.get(&render_attachments.normal).unwrap();

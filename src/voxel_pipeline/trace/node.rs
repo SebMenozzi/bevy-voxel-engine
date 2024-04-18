@@ -5,14 +5,17 @@ use crate::voxel_pipeline::{voxel_world::VoxelData, RenderGraphSettings};
 use bevy::{
     prelude::*,
     render::{
-        render_graph::{self, SlotInfo, SlotType},
+        render_graph::{Node, SlotInfo, SlotType, self},
         render_resource::*,
         view::{ExtractedView, ViewTarget},
     },
 };
 
 pub struct TraceNode {
-    query: QueryState<(&'static ViewTarget, &'static ViewTraceUniformBuffer), With<ExtractedView>>,
+    query: QueryState<(
+        &'static ViewTarget, 
+        &'static ViewTraceUniformBuffer
+    ), With<ExtractedView>>,
 }
 
 impl TraceNode {
@@ -23,7 +26,7 @@ impl TraceNode {
     }
 }
 
-impl render_graph::Node for TraceNode {
+impl Node for TraceNode {
     fn input(&self) -> Vec<SlotInfo> {
         vec![
             SlotInfo::new("normal", SlotType::TextureView),
@@ -54,7 +57,8 @@ impl render_graph::Node for TraceNode {
         let (target, trace_uniform_buffer) = match self.query.get_manual(world, view_entity) {
             Ok(result) => result,
             Err(err) => {
-                println!("Voxel camera missing component!: {}", err);
+                println!("Voxel camera missing component! {}", err);
+                //return Ok(());
                 exit(1);
             }
         };
@@ -77,7 +81,7 @@ impl render_graph::Node for TraceNode {
                 .create_bind_group(
                     None,
                     &trace_pipeline_data.trace_bind_group_layout,
-            &[
+                    &[
                         BindGroupEntry {
                             binding: 0,
                             resource: trace_uniform_buffer.binding().unwrap(),
@@ -100,10 +104,12 @@ impl render_graph::Node for TraceNode {
                 resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Load,
-                    store: true,
+                    store: StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         };
 
         {

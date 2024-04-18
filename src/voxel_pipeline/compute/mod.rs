@@ -1,5 +1,5 @@
 use bevy::{
-    asset::{load_internal_asset, Handle},
+    asset::embedded_asset,
     prelude::*,
     render::{
         Render,
@@ -19,58 +19,21 @@ pub mod rebuild;
 
 const MAX_TYPE_BUFFER_DATA: usize = 1000000; // 4mb
 
-pub const ANIMATION_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(7356431584756113968);
-pub const AUTOMATA_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(2461997473694366307);
-pub const CLEAR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(15320669235097444653);
-pub const PHYSICS_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(5103938181551247167);
-pub const REBUILD_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(18135969847573717619);
-
 pub struct ComputeResourcesPlugin;
 
 impl Plugin for ComputeResourcesPlugin {
     fn build(&self, app: &mut App) {
-        load_internal_asset!(
-            app,
-            ANIMATION_SHADER_HANDLE,
-            "../shaders/compute/animation.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(
-            app,
-            AUTOMATA_SHADER_HANDLE,
-            "../shaders/compute/automata.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(
-            app,
-            CLEAR_SHADER_HANDLE,
-            "../shaders/compute/clear.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(
-            app,
-            PHYSICS_SHADER_HANDLE,
-            "../shaders/compute/physics.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(
-            app,
-            REBUILD_SHADER_HANDLE,
-            "../shaders/compute/rebuild.wgsl",
-            Shader::from_wgsl
-        );
+        embedded_asset!(app, "src/", "animation.wgsl");
+        embedded_asset!(app, "src/", "automata.wgsl");
+        embedded_asset!(app, "src/", "clear.wgsl");
+        embedded_asset!(app, "src/", "physics.wgsl");
+        embedded_asset!(app, "src/", "rebuild.wgsl");
     }
 
     fn finish(&self, app: &mut App) {
-        let render_device = app
-            .sub_app(RenderApp)
-            .world
-            .resource::<RenderDevice>();
+        let render_device = app.sub_app(RenderApp).world.resource::<RenderDevice>();
 
-        let render_queue = app
-            .sub_app(RenderApp)
-            .world
-            .resource::<RenderQueue>();
+        let render_queue = app.sub_app(RenderApp).world.resource::<RenderQueue>();
 
         let mut uniform_buffer = UniformBuffer::from(ComputeUniforms {
             time: 0.0,
@@ -95,9 +58,9 @@ impl Plugin for ComputeResourcesPlugin {
         });
 
         let bind_group_layout =
-            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("compute bind group layout"),
-                entries: &[
+            render_device.create_bind_group_layout(
+                "compute bind group layout",
+                &[
                     BindGroupLayoutEntry {
                         binding: 0,
                         visibility: ShaderStages::COMPUTE,
@@ -129,7 +92,7 @@ impl Plugin for ComputeResourcesPlugin {
                         count: None,
                     },
                 ],
-            });
+            );
 
         let bind_group = render_device.create_bind_group(
             None,

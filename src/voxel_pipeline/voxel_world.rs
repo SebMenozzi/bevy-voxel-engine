@@ -5,11 +5,10 @@ use crate::{
 use bevy::{
     prelude::*,
     render::{
-        Render,
+        Render, RenderApp, RenderSet,
         extract_resource::{ExtractResource, ExtractResourcePlugin},
         render_resource::*,
         renderer::{RenderDevice, RenderQueue},
-        RenderApp, RenderSet,
     },
 };
 use std::sync::Arc;
@@ -20,17 +19,11 @@ impl Plugin for VoxelWorldPlugin {
     fn build(&self, _app: &mut App) {}
 
     fn finish(&self, app: &mut App) {
-        let render_device = app
-            .sub_app(RenderApp)
-            .world
-            .resource::<RenderDevice>();
+        let render_device = app.sub_app(RenderApp).world.resource::<RenderDevice>();
 
-        let render_queue = app
-            .sub_app(RenderApp)
-            .world
-            .resource::<RenderQueue>();
+        let render_queue = app.sub_app(RenderApp).world.resource::<RenderQueue>();
 
-        let gh = GH::empty(128);
+        let gh = GH::empty(256);
         let buffer_size = gh.get_buffer_size();
         let texture_size = gh.texture_size;
         let gh_offsets = gh.get_offsets();
@@ -70,6 +63,7 @@ impl Plugin for VoxelWorldPlugin {
                 usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_DST,
                 view_formats: &[],
             },
+            TextureDataOrder::default(),
             &gh.texture_data.clone(),
         );
         let voxel_world = voxel_world.create_view(&TextureViewDescriptor::default());
@@ -81,24 +75,6 @@ impl Plugin for VoxelWorldPlugin {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 
-        // Mip texture
-        let mip_count = gh.texture_size.trailing_zeros();
-        let mip_texture = render_device.create_texture(&TextureDescriptor {
-            label: None,
-            size: Extent3d {
-                width: gh.texture_size,
-                height: gh.texture_size,
-                depth_or_array_layers: gh.texture_size,
-            },
-            mip_level_count: mip_count,
-            sample_count: 1,
-            dimension: TextureDimension::D3,
-            format: TextureFormat::Rgba8Unorm,
-            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let mip_texture_view = mip_texture.create_view(&TextureViewDescriptor::default());
-
         // Sampler
         let texture_sampler = render_device.create_sampler(&SamplerDescriptor {
             mag_filter: FilterMode::Linear,
@@ -108,12 +84,12 @@ impl Plugin for VoxelWorldPlugin {
         });
 
         let bind_group_layout =
-            render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("voxelization bind group layout"),
-                entries: &[
+            render_device.create_bind_group_layout(
+                "voxelization bind group layout",
+                &[
                     BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: ShaderStages::FRAGMENT | ShaderStages::COMPUTE,
+                        visibility: ShaderStages::VERTEX_FRAGMENT | ShaderStages::COMPUTE,
                         ty: BindingType::Buffer {
                             ty: BufferBindingType::Uniform,
                             has_dynamic_offset: false,
@@ -123,7 +99,7 @@ impl Plugin for VoxelWorldPlugin {
                     },
                     BindGroupLayoutEntry {
                         binding: 1,
-                        visibility: ShaderStages::FRAGMENT | ShaderStages::COMPUTE,
+                        visibility: ShaderStages::VERTEX_FRAGMENT | ShaderStages::COMPUTE,
                         ty: BindingType::StorageTexture {
                             access: StorageTextureAccess::ReadWrite,
                             format: TextureFormat::R16Uint,
@@ -133,7 +109,7 @@ impl Plugin for VoxelWorldPlugin {
                     },
                     BindGroupLayoutEntry {
                         binding: 2,
-                        visibility: ShaderStages::FRAGMENT | ShaderStages::COMPUTE,
+                        visibility: ShaderStages::VERTEX_FRAGMENT | ShaderStages::COMPUTE,
                         ty: BindingType::Buffer {
                             ty: BufferBindingType::Storage { read_only: false },
                             has_dynamic_offset: false,
@@ -144,21 +120,11 @@ impl Plugin for VoxelWorldPlugin {
                     BindGroupLayoutEntry {
                         binding: 3,
                         visibility: ShaderStages::FRAGMENT | ShaderStages::COMPUTE,
-                        ty: BindingType::Texture {
-                            sample_type: TextureSampleType::Float { filterable: true },
-                            view_dimension: TextureViewDimension::D3,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    BindGroupLayoutEntry {
-                        binding: 4,
-                        visibility: ShaderStages::FRAGMENT | ShaderStages::COMPUTE,
                         ty: BindingType::Sampler(SamplerBindingType::Filtering),
                         count: None,
                     },
                 ],
-            });
+            );
 
         let bind_group = render_device.create_bind_group(
             None,
@@ -178,10 +144,6 @@ impl Plugin for VoxelWorldPlugin {
                 },
                 BindGroupEntry {
                     binding: 3,
-                    resource: BindingResource::TextureView(&mip_texture_view),
-                },
-                BindGroupEntry {
-                    binding: 4,
                     resource: BindingResource::Sampler(&texture_sampler),
                 },
             ],
@@ -201,7 +163,6 @@ impl Plugin for VoxelWorldPlugin {
                 uniform_buffer,
                 voxel_world,
                 grid_hierarchy,
-                mip_texture,
                 texture_sampler,
                 bind_group_layout,
                 bind_group,
@@ -217,7 +178,6 @@ pub struct VoxelData {
     pub uniform_buffer: UniformBuffer<VoxelUniforms>,
     pub voxel_world: TextureView,
     pub grid_hierarchy: Buffer,
-    pub mip_texture: Texture,
     pub texture_sampler: Sampler,
     pub bind_group_layout: BindGroupLayout,
     pub bind_group: BindGroup,
@@ -324,7 +284,7 @@ fn load_voxel_world_prepare(
 
         // voxel world
         let voxel_world = render_device.create_texture_with_data(
-            render_queue.as_ref(),
+            &render_queue,
             &TextureDescriptor {
                 label: None,
                 size: Extent3d {
@@ -339,27 +299,10 @@ fn load_voxel_world_prepare(
                 usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_DST,
                 view_formats: &[],
             },
+            TextureDataOrder::default(),
             &gh.texture_data,
         );
         voxel_data.voxel_world = voxel_world.create_view(&TextureViewDescriptor::default());
-
-        // mip texture
-        let mip_count = gh.texture_size.trailing_zeros();
-        let mip_texture = render_device.create_texture(&TextureDescriptor {
-            label: None,
-            size: Extent3d {
-                width: gh.texture_size,
-                height: gh.texture_size,
-                depth_or_array_layers: gh.texture_size,
-            },
-            mip_level_count: mip_count,
-            sample_count: 1,
-            dimension: TextureDimension::D3,
-            format: TextureFormat::Rgba8Unorm,
-            usage: TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        voxel_data.mip_texture = mip_texture;
     }
 }
 
@@ -382,14 +325,6 @@ fn queue_bind_group(render_device: Res<RenderDevice>, mut voxel_data: ResMut<Vox
             },
             BindGroupEntry {
                 binding: 3,
-                resource: BindingResource::TextureView(
-                    &voxel_data
-                        .mip_texture
-                        .create_view(&TextureViewDescriptor::default()),
-                ),
-            },
-            BindGroupEntry {
-                binding: 4,
                 resource: BindingResource::Sampler(&voxel_data.texture_sampler),
             },
         ],
