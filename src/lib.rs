@@ -1,7 +1,7 @@
 use bevy::{
     core_pipeline::tonemapping::Tonemapping,
     prelude::*,
-    render::{camera::CameraRenderGraph, primitives::Frustum, view::VisibleEntities},
+    render::{camera::CameraRenderGraph, camera::CameraMainTextureUsages, primitives::Frustum, view::VisibleEntities},
 };
 use physics::PhysicsPlugin;
 pub use physics::VOXELS_PER_METER;
@@ -120,6 +120,7 @@ pub struct VoxelCameraBundle {
     pub camera_3d: Camera3d,
     pub tonemapping: Tonemapping,
     pub trace_settings: TraceSettings,
+    pub main_texture_usages: CameraMainTextureUsages,
 }
 
 impl Default for VoxelCameraBundle {
@@ -138,6 +139,7 @@ impl Default for VoxelCameraBundle {
             global_transform: default(),
             camera_3d: default(),
             trace_settings: default(),
+            main_texture_usages: default(),
         }
     }
 }

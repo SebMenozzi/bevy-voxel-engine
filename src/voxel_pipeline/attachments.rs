@@ -3,10 +3,8 @@ use bevy::{
     prelude::*,
     render::{
         extract_component::{ExtractComponent, ExtractComponentPlugin},
-        render_asset::{RenderAssets, RenderAssetUsages},
-        render_graph::{self, NodeRunError, RenderGraphContext, SlotInfo, SlotType, SlotValue},
+        render_asset::RenderAssetUsages,
         render_resource::*,
-        renderer::RenderContext,
     },
 };
 
@@ -93,61 +91,5 @@ fn resize_attachments(
             let position_image = images.get_mut(&render_attachments.position).unwrap();
             position_image.resize(size);
         }
-    }
-}
-
-pub struct AttachmentsNode {
-    query: QueryState<&'static RenderAttachments>,
-}
-
-impl AttachmentsNode {
-    pub fn new(world: &mut World) -> Self {
-        Self {
-            query: world.query_filtered(),
-        }
-    }
-}
-
-impl render_graph::Node for AttachmentsNode {
-
-    fn output(&self) -> Vec<SlotInfo> {
-        vec![
-            SlotInfo::new("normal", SlotType::TextureView),
-            SlotInfo::new("position", SlotType::TextureView),
-        ]
-    }
-
-    fn update(&mut self, world: &mut World) {
-        self.query.update_archetypes(world);
-    }
-
-    fn run(
-        &self,
-        graph: &mut RenderGraphContext,
-        _render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let view_entity = graph.view_entity();
-        let gpu_images = world.resource::<RenderAssets<Image>>();
-
-        let render_attachments = match self.query.get_manual(world, view_entity) {
-            Ok(result) => result,
-            Err(err) => panic!("Voxel camera missing component! {}", err),
-        };
-
-        let normal = gpu_images.get(&render_attachments.normal).unwrap();
-        let position = gpu_images.get(&render_attachments.position).unwrap();
-
-        let normal = normal.texture_view.clone();
-        let position = position.texture_view.clone();
-
-        graph
-            .set_output("normal", SlotValue::TextureView(normal))
-            .unwrap();
-        graph
-            .set_output("position", SlotValue::TextureView(position))
-            .unwrap();
-
-        Ok(())
     }
 }

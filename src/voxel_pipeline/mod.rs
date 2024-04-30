@@ -1,5 +1,5 @@
 use self::{
-    attachments::{AttachmentsNode, AttachmentsPlugin},
+    attachments::AttachmentsPlugin,
     compute::{
         animation::AnimationNode, automata::AutomataNode, clear::ClearNode,
         physics::PhysicsNode, rebuild::RebuildNode, ComputeResourcesPlugin,
@@ -34,7 +34,6 @@ pub struct RenderPlugin;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 enum VoxelGraphLabel {
-    Attachments,
     Trace,
     //Bloom,
     Tonemapping,
@@ -64,26 +63,25 @@ impl Plugin for RenderPlugin {
             .add_plugins(TracePlugin)
             .add_plugins(VoxelizationPlugin)
             .add_plugins(ComputeResourcesPlugin);
-    }
 
-    fn finish(&self, app: &mut App) {
-        let render_app = app.sub_app_mut(RenderApp);
+        let render_app = match app.get_sub_app_mut(RenderApp) {
+            Ok(render_app) => render_app,
+            Err(_) => return,
+        };
         let render_world = &mut render_app.world;
 
         // Build voxel render graph
         let mut voxel_graph = RenderGraph::default();
 
         // Voxel render graph
-        let attachments = AttachmentsNode::new(render_world);
-        let trace = TraceNode::new(render_world);
+        let trace = TraceNode::from_world(render_world);
         //let bloom = BloomNode::new(render_world);
         let tonemapping = TonemappingNode::from_world(render_world);
         let fxaa = FxaaNode::from_world(render_world);
         let ui = UiPassNode::new(render_world);
         let upscaling = UpscalingNode::from_world(render_world);
 
-        voxel_graph.add_node(VoxelGraphLabel::Attachments, attachments);
-        voxel_graph.add_node(VoxelGraphLabel::Trace, trace);
+        voxel_graph.add_node(VoxelGraphLabel::Trace, ViewNodeRunner::new(trace, render_world));
         //voxel_graph.add_node(VoxelGraphLabel::Bloom, ViewNodeRunner::new(bloom, render_world));
         voxel_graph.add_node(VoxelGraphLabel::Tonemapping, ViewNodeRunner::new(tonemapping, render_world));
         voxel_graph.add_node(VoxelGraphLabel::Fxaa, ViewNodeRunner::new(fxaa, render_world));
@@ -96,9 +94,6 @@ impl Plugin for RenderPlugin {
         voxel_graph.add_node_edge(VoxelGraphLabel::Fxaa, VoxelGraphLabel::Ui);
         voxel_graph.add_node_edge(VoxelGraphLabel::Ui, VoxelGraphLabel::Upscaling);
 
-        voxel_graph.add_slot_edge(VoxelGraphLabel::Attachments, "normal", VoxelGraphLabel::Trace, "normal");
-        voxel_graph.add_slot_edge(VoxelGraphLabel::Attachments, "position", VoxelGraphLabel::Trace, "position");
-
         // Voxel render graph compute
         voxel_graph.add_node(VoxelGraphLabel::Rebuild, RebuildNode);
         voxel_graph.add_node(VoxelGraphLabel::Physics, PhysicsNode);
@@ -106,19 +101,21 @@ impl Plugin for RenderPlugin {
         voxel_graph.add_node_edge(VoxelGraphLabel::Rebuild, VoxelGraphLabel::Physics);
         voxel_graph.add_node_edge(VoxelGraphLabel::Physics, VoxelGraphLabel::Trace);
 
-        // Main graph compute
-        let mut main_graph = render_world.resource_mut::<RenderGraph>();
+        // Render graph
+        let mut render_graph = render_world.resource_mut::<RenderGraph>();
 
-        main_graph.add_node(RenderGraphLabel::Clear, ClearNode);
-        main_graph.add_node(RenderGraphLabel::Automata, AutomataNode);
-        main_graph.add_node(RenderGraphLabel::Animation, AnimationNode);
+        render_graph.add_node(RenderGraphLabel::Clear, ClearNode);
+        render_graph.add_node(RenderGraphLabel::Automata, AutomataNode);
+        render_graph.add_node(RenderGraphLabel::Animation, AnimationNode);
 
-        main_graph.add_node_edge(RenderGraphLabel::Clear, RenderGraphLabel::Automata);
-        main_graph.add_node_edge(RenderGraphLabel::Automata, RenderGraphLabel::Animation);
-        main_graph.add_node_edge(RenderGraphLabel::Animation, CameraDriverLabel);
+        render_graph.add_node_edge(RenderGraphLabel::Clear, RenderGraphLabel::Automata);
+        render_graph.add_node_edge(RenderGraphLabel::Automata, RenderGraphLabel::Animation);
+        render_graph.add_node_edge(RenderGraphLabel::Animation, CameraDriverLabel);
 
         // Insert the voxel graph into the main render graph
-        main_graph.add_sub_graph(VoxelGraph, voxel_graph);
+        render_graph.add_sub_graph(VoxelGraph, voxel_graph);
+
+        println!("Voxel render graph built");
     }
 }
 

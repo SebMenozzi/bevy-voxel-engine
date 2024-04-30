@@ -1,50 +1,36 @@
-use std::process::exit;
-
 use super::{TracePipelineData, ViewTraceUniformBuffer};
-use crate::voxel_pipeline::{voxel_world::VoxelData, RenderGraphSettings};
+use crate::voxel_pipeline::{
+    attachments::RenderAttachments,
+    voxel_world::VoxelData, 
+    RenderGraphSettings,
+};
 use bevy::{
     prelude::*,
     render::{
-        render_graph::{Node, SlotInfo, SlotType, self},
+        render_asset::RenderAssets,
+        render_graph::{self, ViewNode},
         render_resource::*,
-        view::{ExtractedView, ViewTarget},
+        view::ViewTarget,
     },
 };
 
-pub struct TraceNode {
-    query: QueryState<(
-        &'static ViewTarget, 
-        &'static ViewTraceUniformBuffer
-    ), With<ExtractedView>>,
-}
+#[derive(Default)]
+pub struct TraceNode;
 
-impl TraceNode {
-    pub fn new(world: &mut World) -> Self {
-        Self {
-            query: world.query_filtered(),
-        }
-    }
-}
-
-impl Node for TraceNode {
-    fn input(&self) -> Vec<SlotInfo> {
-        vec![
-            SlotInfo::new("normal", SlotType::TextureView),
-            SlotInfo::new("position", SlotType::TextureView),
-        ]
-    }
-
-    fn update(&mut self, world: &mut World) {
-        self.query.update_archetypes(world);
-    }
+impl ViewNode for TraceNode {
+    type ViewQuery = (
+        &'static ViewTarget,
+        &'static ViewTraceUniformBuffer,
+        &'static RenderAttachments,
+    );
 
     fn run(
         &self,
-        graph: &mut render_graph::RenderGraphContext,
+        _graph: &mut render_graph::RenderGraphContext,
         render_context: &mut bevy::render::renderer::RenderContext,
+        view_query: bevy::ecs::query::QueryItem<Self::ViewQuery>,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let view_entity = graph.view_entity();
         let pipeline_cache = world.resource::<PipelineCache>();
         let voxel_data = world.resource::<VoxelData>();
         let trace_pipeline_data = world.resource::<TracePipelineData>();
@@ -54,14 +40,7 @@ impl Node for TraceNode {
             return Ok(());
         }
 
-        let (target, trace_uniform_buffer) = match self.query.get_manual(world, view_entity) {
-            Ok(result) => result,
-            Err(err) => {
-                println!("Voxel camera missing component! {}", err);
-                //return Ok(());
-                exit(1);
-            }
-        };
+        let (target, trace_uniform_buffer, render_attachments) = view_query;
 
         let trace_pipeline =
             match pipeline_cache.get_render_pipeline(trace_pipeline_data.trace_pipeline_id) {
@@ -72,8 +51,16 @@ impl Node for TraceNode {
         let post_process = target.post_process_write();
         let destination = post_process.destination;
 
-        let normal = graph.get_input_texture("normal")?;
-        let position = graph.get_input_texture("position")?;
+        let gpu_images = world.get_resource::<RenderAssets<Image>>().unwrap();
+
+        let normal = &gpu_images
+            .get(&render_attachments.normal)
+            .expect("normal image not found")
+            .texture_view;
+        let position = &gpu_images
+            .get(&render_attachments.position)
+            .expect("position image not found")
+            .texture_view;
 
         let trace_bind_group =
             render_context

@@ -56,7 +56,7 @@ fn setup(
         CharacterEntity {
             in_spectator: true,
             grounded: false,
-            look_at: -character_transform.local_z(),
+            look_at: *-character_transform.local_z(),
             up: Vec3::new(0.0, 1.0, 0.0),
         },
         VoxelPhysics::new(

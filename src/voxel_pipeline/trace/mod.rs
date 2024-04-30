@@ -30,23 +30,19 @@ impl Plugin for TracePlugin {
         load_internal_asset!(app, COMMON_HANDLE, "../shaders/common.wgsl", Shader::from_wgsl);
         load_internal_asset!(app, BINDINGS_HANDLE, "../shaders/bindings.wgsl", Shader::from_wgsl);
         load_internal_asset!(app, RAYTRACING_HANDLE, "../shaders/raytracing.wgsl", Shader::from_wgsl);
-
-        app.add_plugins(ExtractComponentPlugin::<TraceSettings>::default());
     }
 
     fn finish(&self, app: &mut App) {
-        let render_app = app.sub_app_mut(RenderApp);
+        app.add_plugins(ExtractComponentPlugin::<TraceSettings>::default());
 
         // Setup custom render pipeline
+        
+        let render_app = app.sub_app_mut(RenderApp);
+
         render_app
             .init_resource::<TracePipelineData>()
             .insert_resource(LastCameras(HashMap::new()))
-            .add_systems(Render,
-                (
-                    prepare_uniforms.in_set(RenderSet::Prepare),
-                )
-            )
-            .add_systems(Update, debug_render);
+            .add_systems(Render, prepare_uniforms.in_set(RenderSet::Prepare));
     }
 }
 
@@ -95,7 +91,7 @@ struct LastCameras(HashMap<Entity, Mat4>);
 
 fn prepare_uniforms(
     mut commands: Commands,
-    query: Query<(Entity, &ExtractedView, &ViewTarget)>,
+    query: Query<(Entity, &TraceSettings, &ExtractedView)>,
     time: Res<Time>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
@@ -103,7 +99,7 @@ fn prepare_uniforms(
 ) {
     let elapsed = time.elapsed_seconds_f64();
 
-    for (entity, view, _) in query.iter() {
+    for (entity, settings, view) in query.iter() {
         let projection = view.projection;
         let inverse_projection = projection.inverse();
         let view = view.transform.compute_matrix();
@@ -121,16 +117,14 @@ fn prepare_uniforms(
             last_camera,
             projection,
             time: elapsed as f32,
-            show_ray_steps: false as u32,
-            samples: 1,
-            shadows: true as u32,
+            show_ray_steps: settings.show_ray_steps as u32,
+            samples: settings.samples,
+            shadows: settings.shadows as u32,
         };
 
         let mut uniform_buffer = UniformBuffer::from(uniforms);
         uniform_buffer.set_label(Some("view trace uniforms"));
         uniform_buffer.write_buffer(&render_device, &render_queue);
-
-        println!("entity => {:#?}", entity);
 
         commands
             .entity(entity)
@@ -138,13 +132,8 @@ fn prepare_uniforms(
     }
 }
 
-fn debug_render(debug_query: Query<(Entity, &ViewTarget, &ViewTraceUniformBuffer)>) {
-    for (entity, _target, _buffer) in debug_query.iter() {
-        println!("Entity {:?} has both ViewTarget and ViewTraceUniformBuffer.", entity);
-    }
-}
-
 impl FromWorld for TracePipelineData {
+
     fn from_world(render_world: &mut World) -> Self {
         let voxel_data = render_world.resource::<VoxelData>();
         let asset_server = render_world.resource::<AssetServer>();
